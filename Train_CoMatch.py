@@ -150,6 +150,9 @@ def train_one_epoch(epoch,
         sim = torch.exp(torch.mm(feats_u_s0, feats_u_s1.t())/args.temperature) 
         sim_probs = sim / sim.sum(1, keepdim=True)
         
+        if args.detach_MB:
+            probs = probs_orig
+
         # pseudo-label graph with self-loop
         Q = torch.mm(probs, probs.t())       
         Q.fill_diagonal_(1)    
@@ -157,6 +160,17 @@ def train_one_epoch(epoch,
             
         Q = Q * pos_mask
         Q = Q / Q.sum(1, keepdim=True)
+
+        if args.detach_SE:
+            SE_mask = torch.zeros_like(Q)
+            SE_mask.diag() = 1
+            Q = Q * SE_mask
+
+        if args.detach_ME:
+            SE_mask = torch.ones_like(Q)
+            SE_mask.diag() = 0
+            Q = Q * SE_mask
+
         
         # contrastive loss
         loss_contrast = - (torch.log(sim_probs + 1e-7) * Q).sum(1)
@@ -165,7 +179,7 @@ def train_one_epoch(epoch,
         # unsupervised classification loss
         loss_u = - torch.sum((F.log_softmax(logits_u_s0,dim=1) * probs),dim=1) * mask                
         loss_u = loss_u.mean()
-        
+
         loss = loss_x + args.lam_u * loss_u + args.lam_c * loss_contrast
         
         optim.zero_grad()
@@ -277,6 +291,9 @@ def main():
                         help='number of batches stored in memory bank')    
     parser.add_argument('--exp-dir', default='CoMatch', type=str, help='experiment id')
     parser.add_argument('--checkpoint', default='', type=str, help='use pretrained model')
+    parser.add_argument('--detach-MB', action='store_true')
+    parser.add_argument('--detach-SE', action='store_true')
+    parser.add_argument('--detach-ME', action='store_true')
     
     args = parser.parse_args()
     

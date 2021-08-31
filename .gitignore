@@ -1,0 +1,5 @@
+*.html
+data
+CIFAR10
+.vscode
+**/__pycache__
